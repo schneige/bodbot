@@ -1,9 +1,3 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
-
-// ignore_for_file: public_member_api_docs
-
 import 'dart:async';
 import 'dart:io';
 
@@ -53,32 +47,26 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  static const Duration _ignoreDuration = Duration(milliseconds: 20);
+  static const String userAccelorometer_data = 'user_accelerometer_data';
+  static const String accelorometer_data = 'accelerometer_data';
+  static const String magnetometer_data = 'magnetometer_data';
+  static const String gyroscope_data = 'gyroscope_data';
+  static const String position_data = 'position_data';
+  static const String speed_data = 'speed_data';
 
-  UserAccelerometerEvent? _userAccelerometerEvent;
-  AccelerometerEvent? _accelerometerEvent;
-  GyroscopeEvent? _gyroscopeEvent;
-  MagnetometerEvent? _magnetometerEvent;
-  Position? _position;
-
-  DateTime? _userAccelerometerUpdateTime;
-  DateTime? _accelerometerUpdateTime;
-  DateTime? _gyroscopeUpdateTime;
-  DateTime? _magnetometerUpdateTime;
-  DateTime? _gpsUpdateTime;
-
-  int? _userAccelerometerLastInterval;
-  int? _accelerometerLastInterval;
-  int? _gyroscopeLastInterval;
-  int? _magnetometerLastInterval;
-  int? _gpsLastInterval;
-
+  IOSink? user_accelerometer_data_sink;
+  IOSink? accelerometer_data_sink;
+  IOSink? gyroscope_data_sink;
+  IOSink? magnetometer_data_sink;
+  IOSink? speed_data_sink;
+  IOSink? position_data_sink;
   final _streamSubscriptions = <StreamSubscription<dynamic>>[];
 
   Duration sensorInterval = SensorInterval.normalInterval;
-  final int bufferSize = 10;
+  final int bufferSize = 100;
   final Map<String, List<String>> _buffers = {};
-  final StreamToFileWriter writer = StreamToFileWriter();
+
+  bool recording = false;
 
   @override
   Widget build(BuildContext context) {
@@ -90,157 +78,83 @@ class _MyHomePageState extends State<MyHomePage> {
       body: Column(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: <Widget>[
-          Center(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                border: Border.all(width: 1.0, color: Colors.black38),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Table(
-              columnWidths: const {
-                0: FlexColumnWidth(4),
-                4: FlexColumnWidth(2),
-              },
-              children: [
-                const TableRow(
-                  children: [
-                    SizedBox.shrink(),
-                    Text('X'),
-                    Text('Y'),
-                    Text('Z'),
-                    Text('Interval'),
-                  ],
-                ),
-                TableRow(
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8.0),
-                      child: Text('UserAccelerometer'),
-                    ),
-                    Text(_userAccelerometerEvent?.x.toStringAsFixed(1) ?? '?'),
-                    Text(_userAccelerometerEvent?.y.toStringAsFixed(1) ?? '?'),
-                    Text(_userAccelerometerEvent?.z.toStringAsFixed(1) ?? '?'),
-                    Text(
-                        '${_userAccelerometerLastInterval?.toString() ?? '?'} ms'),
-                  ],
-                ),
-                TableRow(
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8.0),
-                      child: Text('Accelerometer'),
-                    ),
-                    Text(_accelerometerEvent?.x.toStringAsFixed(1) ?? '?'),
-                    Text(_accelerometerEvent?.y.toStringAsFixed(1) ?? '?'),
-                    Text(_accelerometerEvent?.z.toStringAsFixed(1) ?? '?'),
-                    Text('${_accelerometerLastInterval?.toString() ?? '?'} ms'),
-                  ],
-                ),
-                TableRow(
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8.0),
-                      child: Text('Gyroscope'),
-                    ),
-                    Text(_gyroscopeEvent?.x.toStringAsFixed(1) ?? '?'),
-                    Text(_gyroscopeEvent?.y.toStringAsFixed(1) ?? '?'),
-                    Text(_gyroscopeEvent?.z.toStringAsFixed(1) ?? '?'),
-                    Text('${_gyroscopeLastInterval?.toString() ?? '?'} ms'),
-                  ],
-                ),
-                TableRow(
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8.0),
-                      child: Text('Magnetometer'),
-                    ),
-                    Text(_magnetometerEvent?.x.toStringAsFixed(1) ?? '?'),
-                    Text(_magnetometerEvent?.y.toStringAsFixed(1) ?? '?'),
-                    Text(_magnetometerEvent?.z.toStringAsFixed(1) ?? '?'),
-                    Text('${_magnetometerLastInterval?.toString() ?? '?'} ms'),
-                  ],
-                ),
-                TableRow(
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8.0),
-                      child: Text('GPS Speed'),
-                    ),
-                    Text(_position?.speed.toStringAsFixed(2) ?? '?'),
-                    Text(_position?.toString() ?? '?'),
-                    const Text(" "),
-                    Text('${_gpsLastInterval?.toString() ?? '?'} ms'),
-                  ],
-                ),
-              ],
-            ),
-          ),
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Update Interval:'),
-              SegmentedButton(
-                segments: [
-                  ButtonSegment(
-                    value: SensorInterval.gameInterval,
-                    label: Text('Game\n'
-                        '(${SensorInterval.gameInterval.inMilliseconds}ms)'),
-                  ),
-                  ButtonSegment(
-                    value: SensorInterval.uiInterval,
-                    label: Text('UI\n'
-                        '(${SensorInterval.uiInterval.inMilliseconds}ms)'),
-                  ),
-                  ButtonSegment(
-                    value: SensorInterval.normalInterval,
-                    label: Text('Normal\n'
-                        '(${SensorInterval.normalInterval.inMilliseconds}ms)'),
-                  ),
-                  const ButtonSegment(
-                    value: Duration(milliseconds: 500),
-                    label: Text('500ms'),
-                  ),
-                  const ButtonSegment(
-                    value: Duration(seconds: 1),
-                    label: Text('1s'),
-                  ),
-                ],
-                selected: {sensorInterval},
-                showSelectedIcon: false,
-                onSelectionChanged: (value) {
-                  setState(() {
-                    sensorInterval = value.first;
-                    userAccelerometerEventStream(
-                        samplingPeriod: sensorInterval);
-                    accelerometerEventStream(samplingPeriod: sensorInterval);
-                    gyroscopeEventStream(samplingPeriod: sensorInterval);
-                    magnetometerEventStream(samplingPeriod: sensorInterval);
-                  });
-                },
-              ),
+              TextButton(
+                  onPressed: () async {
+                    if (mounted) {
+                      setState(() {
+                        recording = !recording;
+                      });
+                      setRecording();
+                    }
+                    print(recording);
+                  },
+                  child: const Text("Button"))
             ],
-          ),
+          )
         ],
       ),
     );
   }
 
+  void setRecording() {
+    if (!recording) {
+      sense();
+    } else {
+      dispose();
+    }
+  }
+
   @override
   void dispose() {
-    super.dispose();
     for (final subscription in _streamSubscriptions) {
       subscription.cancel();
     }
-    writer.closeAll();
+    _streamSubscriptions.clear();
+    super.dispose();
   }
 
   @override
   void initState() {
     super.initState();
+    // When the app starts requestpermission is triggered to get location permission from the phone
     _requestPermission();
+    openFiles();
+    sense();
+  }
+
+  Future<void> openFiles() async {
+    final user_accelerometer_data_file =
+        File(await _getFilePath(userAccelorometer_data));
+    user_accelerometer_data_sink =
+        user_accelerometer_data_file.openWrite(mode: FileMode.writeOnlyAppend);
+
+    final accelerometer_data_file =
+        File(await _getFilePath(accelorometer_data));
+    accelerometer_data_sink =
+        accelerometer_data_file.openWrite(mode: FileMode.writeOnlyAppend);
+
+    final magnetometer_data_file = File(await _getFilePath(magnetometer_data));
+    magnetometer_data_sink =
+        magnetometer_data_file.openWrite(mode: FileMode.writeOnlyAppend);
+
+    final gyroscope_data_file = File(await _getFilePath(gyroscope_data));
+    gyroscope_data_sink =
+        gyroscope_data_file.openWrite(mode: FileMode.writeOnlyAppend);
+
+    final speed_data_file = File(await _getFilePath(speed_data));
+    speed_data_sink = speed_data_file.openWrite(mode: FileMode.writeOnlyAppend);
+
+    final position_data_file = File(await _getFilePath(position_data));
+    position_data_sink =
+        position_data_file.openWrite(mode: FileMode.writeOnlyAppend);
+  }
+
+  void closeFiles() async {
+    await user_accelerometer_data_sink?.flush();
+    await user_accelerometer_data_sink?.close();
   }
 
   void _requestPermission() async {
@@ -264,11 +178,10 @@ class _MyHomePageState extends State<MyHomePage> {
     if (permission == LocationPermission.deniedForever) {
       return;
     }
-
-    sense();
   }
 
   void _handleSensorEvent(String data, String filePath) async {
+    // print(filePath);
     if (!_buffers.containsKey(filePath)) {
       _buffers[filePath] = [];
     }
@@ -277,7 +190,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
     if (_buffers[filePath]!.length >= bufferSize) {
       final path = await _getFilePath(filePath);
-      await _writeToFile(path, _buffers[filePath]!);
+      await _writeToFile(filePath, path, _buffers[filePath]!);
       _buffers[filePath]!.clear();
     }
   }
@@ -287,35 +200,55 @@ class _MyHomePageState extends State<MyHomePage> {
     return '${directory?.path}/$fileName';
   }
 
-  Future<void> _writeToFile(String filePath, List<String> buffer) async {
-    final file = File(filePath);
-    final sink = file.openWrite(mode: FileMode.writeOnlyAppend);
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
+  Future<void> _writeToFile(
+      String filename, String filePath, List<String> buffer) async {
+    // print(filename);
     for (var data in buffer) {
-      sink.writeln('$timestamp,$data');
+      switch (filename) {
+        case "user_accelerometer_data":
+          user_accelerometer_data_sink?.writeln(data);
+          break;
+        case "accelerometer_data":
+          accelerometer_data_sink?.writeln(data);
+          break;
+        case "magnetometer_data":
+          magnetometer_data_sink?.writeln(data);
+          break;
+        case "gyroscope_data":
+          gyroscope_data_sink?.writeln(data);
+          break;
+        case "position_data":
+          position_data_sink?.writeln(data);
+          break;
+        case "speed_data":
+          speed_data_sink?.writeln(data);
+          break;
+
+        default:
+        // throw Exception("no file found");
+      }
     }
-    await sink.flush();
-    await sink.close();
   }
 
+  // 5 sensor Subscriptions are added to a list so we can dispose of them later if we need
   void sense() {
     _streamSubscriptions.add(
       userAccelerometerEventStream(samplingPeriod: sensorInterval).listen(
         (UserAccelerometerEvent event) {
-          final now = DateTime.now();
-          setState(() {
-            _userAccelerometerEvent = event;
-            if (_userAccelerometerUpdateTime != null) {
-              final interval = now.difference(_userAccelerometerUpdateTime!);
-              if (interval > _ignoreDuration) {
-                _userAccelerometerLastInterval = interval.inMilliseconds;
-              }
-            }
-          });
-          _userAccelerometerUpdateTime = now;
+          final now = DateTime.now().millisecondsSinceEpoch;
+          // setState(() {
+          //   _userAccelerometerEvent = event;
+          //   if (_userAccelerometerUpdateTime != null) {
+          //     final interval = now.difference(_userAccelerometerUpdateTime!);
+          //     if (interval > _ignoreDuration) {
+          //       _userAccelerometerLastInterval = interval.inMilliseconds;
+          //     }
+          //   }
+          // });
+          // _userAccelerometerUpdateTime = now;
           _handleSensorEvent(
-            '${event.x},${event.y},${event.z}',
-            'user_accelerometer_data',
+            '$now,${event.x},${event.y},${event.z}',
+            userAccelorometer_data,
           );
         },
         onError: (e) {
@@ -335,20 +268,20 @@ class _MyHomePageState extends State<MyHomePage> {
     _streamSubscriptions.add(
       accelerometerEventStream(samplingPeriod: sensorInterval).listen(
         (AccelerometerEvent event) {
-          final now = DateTime.now();
-          setState(() {
-            _accelerometerEvent = event;
-            if (_accelerometerUpdateTime != null) {
-              final interval = now.difference(_accelerometerUpdateTime!);
-              if (interval > _ignoreDuration) {
-                _accelerometerLastInterval = interval.inMilliseconds;
-              }
-            }
-          });
-          _accelerometerUpdateTime = now;
+          final now = DateTime.now().millisecondsSinceEpoch;
+          // setState(() {
+          //   _accelerometerEvent = event;
+          //   if (_accelerometerUpdateTime != null) {
+          //     final interval = now.difference(_accelerometerUpdateTime!);
+          //     if (interval > _ignoreDuration) {
+          //       _accelerometerLastInterval = interval.inMilliseconds;
+          //     }
+          //   }
+          // });
+          // _accelerometerUpdateTime = now;
           _handleSensorEvent(
-            '${event.x},${event.y},${event.z}',
-            'accelerometer_data',
+            '$now,${event.x},${event.y},${event.z}',
+            accelorometer_data,
           );
         },
         onError: (e) {
@@ -368,20 +301,21 @@ class _MyHomePageState extends State<MyHomePage> {
     _streamSubscriptions.add(
       gyroscopeEventStream(samplingPeriod: sensorInterval).listen(
         (GyroscopeEvent event) {
-          final now = DateTime.now();
-          setState(() {
-            _gyroscopeEvent = event;
-            if (_gyroscopeUpdateTime != null) {
-              final interval = now.difference(_gyroscopeUpdateTime!);
-              if (interval > _ignoreDuration) {
-                _gyroscopeLastInterval = interval.inMilliseconds;
-              }
-            }
-          });
-          _gyroscopeUpdateTime = now;
+          final now = DateTime.now().millisecondsSinceEpoch;
+          // print("what");
+          // setState(() {
+          //   _gyroscopeEvent = event;
+          //   if (_gyroscopeUpdateTime != null) {
+          //     final interval = now.difference(_gyroscopeUpdateTime!);
+          //     if (interval > _ignoreDuration) {
+          //       _gyroscopeLastInterval = interval.inMilliseconds;
+          //     }
+          //   }
+          // });
+          // _gyroscopeUpdateTime = now;
           _handleSensorEvent(
-            '${event.x},${event.y},${event.z}',
-            'gyroscope_data',
+            '$now,${event.x},${event.y},${event.z}',
+            gyroscope_data,
           );
         },
         onError: (e) {
@@ -401,20 +335,20 @@ class _MyHomePageState extends State<MyHomePage> {
     _streamSubscriptions.add(
       magnetometerEventStream(samplingPeriod: sensorInterval).listen(
         (MagnetometerEvent event) {
-          final now = DateTime.now();
-          setState(() {
-            _magnetometerEvent = event;
-            if (_magnetometerUpdateTime != null) {
-              final interval = now.difference(_magnetometerUpdateTime!);
-              if (interval > _ignoreDuration) {
-                _magnetometerLastInterval = interval.inMilliseconds;
-              }
-            }
-          });
-          _magnetometerUpdateTime = now;
+          final now = DateTime.now().millisecondsSinceEpoch;
+          // setState(() {
+          //   _magnetometerEvent = event;
+          //   if (_magnetometerUpdateTime != null) {
+          //     final interval = now.difference(_magnetometerUpdateTime!);
+          //     if (interval > _ignoreDuration) {
+          //       _magnetometerLastInterval = interval.inMilliseconds;
+          //     }
+          //   }
+          // });
+          // _magnetometerUpdateTime = now;
           _handleSensorEvent(
-            '${event.x},${event.y},${event.z}',
-            'magnetometer_data',
+            '$now,${event.x},${event.y},${event.z}',
+            magnetometer_data,
           );
         },
         onError: (e) {
@@ -435,25 +369,24 @@ class _MyHomePageState extends State<MyHomePage> {
             locationSettings: const LocationSettings(
                 accuracy: LocationAccuracy.high, distanceFilter: 1))
         .listen((Position position) {
-      print("here");
-      final now = DateTime.now();
-      setState(() {
-        _position = position;
-        if (_gpsUpdateTime != null) {
-          final interval = now.difference(_gpsUpdateTime!);
-          if (interval > _ignoreDuration) {
-            _gyroscopeLastInterval = interval.inMilliseconds;
-          }
-        }
-      });
-      _gpsUpdateTime = now;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      // setState(() {
+      //   _position = position;
+      //   if (_gpsUpdateTime != null) {
+      //     final interval = now.difference(_gpsUpdateTime!);
+      //     if (interval > _ignoreDuration) {
+      //       _gyroscopeLastInterval = interval.inMilliseconds;
+      //     }
+      //   }
+      // });
+      // _gpsUpdateTime = now;
       _handleSensorEvent(
-        position.speed.toString(),
-        'speed',
+        '$now,${position.speed.toString()}',
+        speed_data,
       );
       _handleSensorEvent(
-        position.toString(),
-        'position',
+        '$now,${position.toString()}',
+        position_data,
       );
     }));
   }
